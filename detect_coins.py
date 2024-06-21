@@ -1,12 +1,9 @@
-# YOLOv5 🚀 by Ultralytics, AGPL-3.0 license
-
 import csv
 import os
 import sys
 from pathlib import Path
 import torch
 import gradio as gr
-
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -32,49 +29,47 @@ from utils.general import (
 )
 from utils.torch_utils import select_device, smart_inference_mode
 
-# 5円以外の識別
-normal_thres = 0.7
-# 5円の識別
-five_thres = 0.1
 
+def run(source, iou_thres, one_thres, five_thres, ten_thres, fifty_thres, hundred_thres, fivehundred_thres, classes):
+    coin_classes = []
+    coin_dict = {
+        "1": 0,
+        "5": 1,
+        "10": 2,
+        "50": 3,
+        "100": 4,
+        "500": 5
+    }
+    for i in classes:
+        coin_classes.append(coin_dict[str(i)])
 
-@smart_inference_mode()
-def run(
-#   weights=ROOT / "yolov5s.pt",  # model path or triton URL
-    weights = r"C:\Users\ok230116\Desktop\Python\人工知能\yolov5-master\runs\train\outdir11\weights\best.pt",
-    source=ROOT / "data/images",  # file/dir/URL/glob/screen/0(webcam)
-    data=ROOT / "data/coco128.yaml",  # dataset.yaml path
-    imgsz=(640, 640),  # inference size (height, width)
-    conf_thres=normal_thres,  # confidence threshold
-    iou_thres=0.5,  # NMS IOU threshold
-    max_det=1000,  # maximum detections per image
-    device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-    view_img=False,  # show results
-    save_txt=False,  # save results to *.txt
-    save_csv=False,  # save results in CSV format
-    save_conf=False,  # save confidences in --save-txt labels
-    save_crop=False,  # save cropped prediction boxes
-    nosave=False,  # do not save images/videos
-    normal_classes=[0, 2, 3, 4, 5],  # filter by class: --class 0, or --class 0 2 3
-    special_classes = [1],
-    agnostic_nms=False,  # class-agnostic NMS
-    augment=False,  # augmented inference
-    visualize=False,  # visualize features
-    update=False,  # update all models
-    project=ROOT / "runs/detect",  # save results to project/name
-    name="exp",  # save results to project/name
-    exist_ok=False,  # existing project/name ok, do not increment
-    line_thickness=3,  # bounding box thickness (pixels)
-    hide_labels=False,  # hide labels
-    hide_conf=False,  # hide confidences
-    half=False,  # use FP16 half-precision inference
-    dnn=False,  # use OpenCV DNN for ONNX inference
-    vid_stride=1,  # video frame-rate stride
-):
+    weights = r"C:\Users\ok230116\Desktop\Python\人工知能\yolov5-master\runs\train\outdir11\weights\best.pt"
+    data = ROOT / "data/coco128.yaml"  # dataset.yaml path
+    imgsz = (640, 640)  # inference size (height, width)
+    max_det = 1000  # maximum detections per image
+    device = ""  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+    view_img = False  # show results
+    save_txt = False  # save results to *.txt
+    save_csv = False  # save results in CSV format
+    save_conf = False  # save confidences in --save-txt labels
+    save_crop = False  # save cropped prediction boxes
+    nosave = False  # do not save images/videos
+    agnostic_nms = False  # class-agnostic NMS
+    augment = False  # augmented inference
+    visualize = False  # visualize features
+    update = False  # update all models
+    project = ROOT / "runs/detect"  # save results to project/name
+    name = "exp"  # save results to project/name
+    exist_ok = False  # existing project/name ok, do not increment
+    line_thickness = 10  # bounding box thickness (pixels)
+    hide_labels = False  # hide labels
+    hide_conf = False  # hide confidences
+    half = False  # use FP16 half-precision inference
+    dnn = False  # use OpenCV DNN for ONNX inference
+    vid_stride = 1  # video frame-rate stride
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
-
 
     # Directories
     save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
@@ -115,20 +110,34 @@ def run(
                 pred = [pred, None]
             else:
                 pred = model(im, augment=augment, visualize=visualize)
-        print(pred)
-        # NMS
-        with dt[2]:
-            pred_normal = non_max_suppression(pred, conf_thres, iou_thres, normal_classes, agnostic_nms, max_det=max_det)
-            pred_special = non_max_suppression(pred, five_thres, iou_thres, special_classes, agnostic_nms, max_det=max_det)
 
-        #print(pred_normal)
-        #print(pred_special)
-        if len(pred_normal) > 0 and len(pred_special) > 0:
-            pred = [torch.cat((pred_normal[0], pred_special[0]), dim=0)]
-        elif len(pred_normal) > 0:
-            pred = pred_normal
-        else:
-            pred = pred_special
+        # NMS
+        thres_list = [one_thres, five_thres, ten_thres, fifty_thres, hundred_thres, fivehundred_thres]
+        pred_list = [0, 0, 0, 0, 0, 0]
+        sub_pred_list = []
+        with dt[2]:
+            for j in coin_classes:
+                i = int(j)
+                sub_pred = non_max_suppression(pred, thres_list[i], iou_thres, [i], agnostic_nms, max_det=max_det)
+                if len(sub_pred) > 0:
+                    pred_list[i] = sub_pred
+            for sub in pred_list:
+                if sub != 0:
+                    sub_pred_list.append(sub[0])
+            if sub_pred_list:
+                pred = [torch.cat(sub_pred_list, dim=0)]
+        print(pred)
+        pred_0 = pred[0]
+        print(pred[0])
+        coin_num = [0, 0, 0, 0, 0, 0]
+        value_list = [1, 5, 10, 50, 100, 500]
+        total = 0
+
+        for i in pred_0:
+            coin_pred = int(i[5].item())
+            coin_num[coin_pred] += 1
+        for i in range(6):
+            total += coin_num[i] * value_list[i]
 
         # Second-stage classifier (optional)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
@@ -206,6 +215,59 @@ def run(
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)
 
+    return save_path, f"{coin_num[0]}枚", f"{coin_num[1]}枚", f"{coin_num[2]}枚", f"{coin_num[3]}枚", f"{coin_num[4]}枚", f"{coin_num[5]}枚", f"{total}円"
+
+
+def gui():
+    with gr.Blocks() as detection:
+        # 画面の配置を決定する手段をGPT4-oに聞きました
+        with gr.Row():
+            with gr.Column(scale=2):
+                image = gr.Image(label="Upload Image", type="filepath")
+
+                iou_thres_input = gr.Slider(minimum=0., maximum=1., label="NMSの閾値")
+                one_thres_input = gr.Slider(minimum=0., maximum=1., label="1円の信頼閾値")
+                five_thres_input = gr.Slider(minimum=0., maximum=1., label="5円の信頼閾値")
+                ten_thres_input = gr.Slider(minimum=0., maximum=1., label="10円の信頼閾値")
+                fifty_thres_input = gr.Slider(minimum=0., maximum=1., label="50円の信頼閾値")
+                hundred_thres_input = gr.Slider(minimum=0., maximum=1., label="100円の信頼閾値")
+                fivehundred_thres_input = gr.Slider(minimum=0., maximum=1., label="500円の信頼閾値")
+
+                classes_input = gr.CheckboxGroup(choices=[1, 5, 10, 50, 100, 500],
+                                                 label="硬貨選択")
+                execution_btn = gr.Button("検出")
+
+            with gr.Column(scale=1):
+                display = gr.Image(label="", type="filepath", interactive=False)
+                one_coin_count = gr.Textbox(label="1円硬貨の枚数", interactive=False)
+                five_coin_count = gr.Textbox(label="5円硬貨の枚数", interactive=False)
+                ten_coin_count = gr.Textbox(label="10円硬貨の枚数", interactive=False)
+                fifty_coin_count = gr.Textbox(label="50円硬貨の枚数", interactive=False)
+                hundred_coin_count = gr.Textbox(label="100円硬貨の枚数", interactive=False)
+                fivehundred_coin_count = gr.Textbox(label="500円硬貨の枚数", interactive=False)
+                total_count = gr.Textbox(label="合計金額", interactive=False)
+
+        execution_btn.click(fn=run,
+                            inputs=[image,
+                                    iou_thres_input,
+                                    one_thres_input,
+                                    five_thres_input,
+                                    ten_thres_input,
+                                    fifty_thres_input,
+                                    hundred_thres_input,
+                                    fivehundred_thres_input,
+                                    classes_input],
+                            outputs=[display,
+                                     one_coin_count,
+                                     five_coin_count,
+                                     ten_coin_count,
+                                     fifty_coin_count,
+                                     hundred_coin_count,
+                                     fivehundred_coin_count,
+                                     total_count]
+                            )
+    detection.launch()
+
 
 if __name__ == "__main__":
-    run()
+    gui()
